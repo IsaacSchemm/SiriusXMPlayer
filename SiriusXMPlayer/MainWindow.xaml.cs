@@ -41,7 +41,10 @@ public partial class MainWindow : Window
 
     private void Browser_NavigationCompleted(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
     {
-        browser.ExecuteScriptAsync(@"
+        browser.ExecuteScriptAsync(@"(async () => {
+            while (document.getElementsByTagName('audio').length === 0)
+                await new Promise(r => setTimeout(r, 1000));
+
             let outputDevices = [];
 
             const div = document.createElement('button');
@@ -114,7 +117,8 @@ public partial class MainWindow : Window
                 }
             });
 
-            closeButton.addEventListener('click', () => document.body.removeChild(div));");
+            closeButton.addEventListener('click', () => document.body.removeChild(div));
+        })();");
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
