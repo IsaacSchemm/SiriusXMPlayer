@@ -34,7 +34,87 @@ public partial class MainWindow : Window
 
         browser.CoreWebView2InitializationCompleted += Browser_CoreWebView2InitializationCompleted;
 
+        browser.NavigationCompleted += Browser_NavigationCompleted;
+
         this.Loaded += MainWindow_Loaded;
+    }
+
+    private void Browser_NavigationCompleted(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
+    {
+        browser.ExecuteScriptAsync(@"
+            let outputDevices = [];
+
+            const div = document.createElement('button');
+	        document.body.appendChild(div);
+	        div.style.position = 'absolute';
+	        div.style.right = '32px';
+	        div.style.top = '16px';
+	        div.style.zIndex = 4;
+
+            const currentDeviceLabel = document.createElement('span');
+            div.appendChild(currentDeviceLabel);
+
+            const toggleButton = document.createElement('button');
+            div.appendChild(toggleButton);
+	        toggleButton.innerText = 'Switch audio device';
+	        toggleButton.style.cursor = 'pointer';
+	        toggleButton.style.marginLeft = '16px';
+
+            const closeButton = document.createElement('button');
+            div.appendChild(closeButton);
+	        closeButton.innerText = '🗙';
+	        closeButton.style.cursor = 'pointer';
+	        closeButton.style.marginLeft = '16px';
+
+            toggleButton.addEventListener('click', async () => {
+                try {
+                    const audio = document.getElementsByTagName('audio')[0];
+                    if (!audio)
+                        return;
+
+                    const sinkId = audio.sinkId;
+
+                    if (outputDevices.length === 0) {
+                        let devices = await navigator.mediaDevices.enumerateDevices();
+                        if (!devices.some(d => d.label)) {
+                            const media = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            devices = await navigator.mediaDevices.enumerateDevices();
+                            for (const track of media.getTracks())
+                                track.stop();
+                        }
+
+                        if (!devices.some(d => d.label))
+                            return;
+
+                        outputDevices = devices
+                            .filter(d => d.label)
+                            .filter(d => d.kind == 'audiooutput');
+                    }
+
+                    let foundIndex = 0;
+
+                    for (let i = 0; i < outputDevices.length; i++) {
+                        const device = outputDevices[i];
+                        if (device.deviceId === sinkId) {
+                            foundIndex = i;
+                        }
+                    }
+
+                    const nextDevice = outputDevices[(foundIndex + 1) % outputDevices.length];
+                    audio.setSinkId(nextDevice.deviceId);
+
+                    const labelText =`(${nextDevice.label || nextDevice.deviceId})`;
+                    currentDeviceLabel.innerText = labelText;
+                    await new Promise(r => setTimeout(r, 2000));
+                    if (currentDeviceLabel.innerText == labelText)
+                        currentDeviceLabel.innerText = '';
+                } catch (e) {
+                    console.error(e);
+                    alert('Could not switch audio device.');
+                }
+            });
+
+            closeButton.addEventListener('click', () => document.body.removeChild(div));");
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
